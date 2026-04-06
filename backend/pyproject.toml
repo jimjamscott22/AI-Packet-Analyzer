@@ -12,10 +12,13 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
   "pytest>=8.0,<9.0",
 ]
+
+[tool.uv]
+package = true
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

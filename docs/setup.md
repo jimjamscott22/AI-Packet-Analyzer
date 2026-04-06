@@ -3,11 +3,8 @@
 ## Backend
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-uvicorn app.main:app --reload
+uv --project backend sync --group dev
+uv --project backend run uvicorn app.main:app --reload
 ```
 
 ## Frontend

@@ -164,14 +164,19 @@ The backend exposes the following API endpoints:
 ### Backend
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-uvicorn app.main:app --reload
+uv --project backend sync --group dev
+uv --project backend run uvicorn app.main:app --reload
 ```
 
 The backend runs on `http://localhost:8000` by default.
+
+This project now uses `uv` for Python dependency and environment management. The backend virtual environment is created automatically under `backend/.venv`.
+
+If you want to update or create the lockfile after changing Python dependencies:
+
+```bash
+uv --project backend lock
+```
 
 ### Frontend
 
@@ -216,16 +221,16 @@ The repository includes backend tests for:
 Run them from the repo root after installing backend dev dependencies:
 
 ```bash
-pytest backend/tests -q
+uv --project backend run pytest backend/tests -q
 ```
 
 ## Documentation
 
 Additional project notes live in:
 
-- [docs/setup.md](/home/jimjamscozz22/Desktop/GitHub/repo/AI-Packet-Analyzer/docs/setup.md)
-- [docs/architecture.md](/home/jimjamscozz22/Desktop/GitHub/repo/AI-Packet-Analyzer/docs/architecture.md)
-- [docs/roadmap.md](/home/jimjamscozz22/Desktop/GitHub/repo/AI-Packet-Analyzer/docs/roadmap.md)
+- [docs/setup.md](docs/setup.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/roadmap.md](docs/roadmap.md)
 
 ## Roadmap
 
