@@ -200,6 +200,16 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+.codex
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Local app data
+data/uploads/
+data/*.db
+data/*.sqlite3
 
 # Marimo
 marimo/_static/
