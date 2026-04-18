@@ -43,9 +43,16 @@ def read_summary(job_id: str) -> JobSummary:
 
 
 @router.get("/{job_id}/findings", response_model=FindingListResponse)
-def read_findings(job_id: str) -> FindingListResponse:
+def read_findings(
+    job_id: str,
+    severity: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, ge=1, le=200),
+) -> FindingListResponse:
     get_job_or_404(job_id)
-    return FindingListResponse(items=get_findings(job_id))
+    return get_findings(job_id, severity=severity, source=source, search=search, offset=offset, limit=limit)
 
 
 @router.get("/{job_id}/flows", response_model=FlowListResponse)

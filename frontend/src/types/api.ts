@@ -46,6 +46,11 @@ export interface FindingRecord {
   recommended_action?: string | null;
 }
 
+export interface PaginatedResponse<T> {
+  total: number;
+  items: T[];
+}
+
 export interface FlowListItem {
   id: string;
   protocol: string;

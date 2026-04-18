@@ -124,9 +124,26 @@ def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[
             if short_sessions:
                 score += 0.2
                 evidence.append("Short TLS session with little payload exchange.")
-            if not flow.metadata.get("sni"):
-                score += 0.15
+            has_sni = bool(flow.metadata.get("sni"))
+            alpn_protocols = flow.metadata.get("alpn_protocols", [])
+            handshake_seen = bool(flow.metadata.get("handshake_seen"))
+            ja3_like_fingerprints = flow.metadata.get("ja3_like_fingerprints", [])
+
+            if not has_sni and not alpn_protocols:
+                score += 0.2
+                evidence.append("TLS flow exposes neither SNI nor ALPN metadata.")
+            elif not has_sni:
+                score += 0.1
                 evidence.append("SNI missing from visible metadata.")
+
+            if not handshake_seen and flow.metadata.get("looks_like_tls"):
+                score += 0.15
+                evidence.append("TLS records observed without a visible handshake.")
+
+            if len(ja3_like_fingerprints) > 1 and short_sessions:
+                score += 0.15
+                evidence.append("Multiple JA3-like fingerprints observed across a short TLS flow.")
+
             if flow.metadata.get("looks_like_tls") and flow.dst_port == 443:
                 score += 0.1
             if flow.score < score:

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -16,7 +17,7 @@ class PacketRecord:
     tcp_flags: str | None = None
     dns: dict[str, str | int | float] = field(default_factory=dict)
     http: dict[str, str | int | float] = field(default_factory=dict)
-    tls: dict[str, str | int | float] = field(default_factory=dict)
+    tls: dict[str, Any] = field(default_factory=dict)
 
 
 class PacketParser(ABC):

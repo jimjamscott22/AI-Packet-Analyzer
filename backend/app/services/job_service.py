@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.database import get_connection
 from app.models.schemas import (
     AnalysisJobResponse,
+    FindingListResponse,
     FindingRecord,
     FlowDetail,
     FlowListItem,
@@ -154,25 +155,66 @@ def replace_job_results(job_id: str, flows: list[dict], findings: list[dict]) ->
     connection.close()
 
 
-def get_findings(job_id: str) -> list[FindingRecord]:
+def get_findings(
+    job_id: str,
+    *,
+    severity: str | None,
+    source: str | None,
+    search: str | None,
+    offset: int,
+    limit: int,
+) -> FindingListResponse:
     connection = get_connection()
-    rows = connection.execute("SELECT * FROM findings WHERE job_id = ? ORDER BY confidence DESC", (job_id,)).fetchall()
+    conditions = ["job_id = ?"]
+    params: list[object] = [job_id]
+    if severity:
+        conditions.append("severity = ?")
+        params.append(severity)
+    if source:
+        conditions.append("source = ?")
+        params.append(source)
+    if search:
+        conditions.append("(type LIKE ? OR title LIKE ? OR summary LIKE ? OR evidence_json LIKE ?)")
+        params.extend([f"%{search}%"] * 4)
+
+    where_clause = " AND ".join(conditions)
+    total = connection.execute(f"SELECT COUNT(*) FROM findings WHERE {where_clause}", params).fetchone()[0]
+    rows = connection.execute(
+        f"""
+        SELECT * FROM findings
+        WHERE {where_clause}
+        ORDER BY
+            CASE severity
+                WHEN 'high' THEN 3
+                WHEN 'medium' THEN 2
+                WHEN 'info' THEN 1
+                ELSE 0
+            END DESC,
+            confidence DESC,
+            title ASC
+        LIMIT ? OFFSET ?
+        """,
+        (*params, limit, offset),
+    ).fetchall()
     connection.close()
-    return [
-        FindingRecord(
-            id=row["id"],
-            type=row["type"],
-            severity=row["severity"],
-            confidence=row["confidence"],
-            title=row["title"],
-            summary=row["summary"],
-            source=row["source"],
-            flow_ids=json.loads(row["flow_ids_json"]),
-            evidence=json.loads(row["evidence_json"]),
-            recommended_action=row["recommended_action"],
-        )
-        for row in rows
-    ]
+    return FindingListResponse(
+        total=total,
+        items=[
+            FindingRecord(
+                id=row["id"],
+                type=row["type"],
+                severity=row["severity"],
+                confidence=row["confidence"],
+                title=row["title"],
+                summary=row["summary"],
+                source=row["source"],
+                flow_ids=json.loads(row["flow_ids_json"]),
+                evidence=json.loads(row["evidence_json"]),
+                recommended_action=row["recommended_action"],
+            )
+            for row in rows
+        ],
+    )
 
 
 def get_flows(job_id: str, *, protocol: str | None, search: str | None, offset: int, limit: int) -> FlowListResponse:
@@ -183,8 +225,8 @@ def get_flows(job_id: str, *, protocol: str | None, search: str | None, offset: 
         conditions.append("protocol = ?")
         params.append(protocol.upper())
     if search:
-        conditions.append("(src_ip LIKE ? OR dst_ip LIKE ?)")
-        params.extend([f"%{search}%", f"%{search}%"])
+        conditions.append("(src_ip LIKE ? OR dst_ip LIKE ? OR classification LIKE ? OR metadata_json LIKE ?)")
+        params.extend([f"%{search}%"] * 4)
 
     where_clause = " AND ".join(conditions)
     total = connection.execute(f"SELECT COUNT(*) FROM flows WHERE {where_clause}", params).fetchone()[0]

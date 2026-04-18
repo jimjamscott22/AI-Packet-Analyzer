@@ -49,6 +49,31 @@ export function FlowDetailPanel({ flow }: FlowDetailPanelProps) {
         )}
       </div>
       <div className="detail-block">
+        <h3>TLS Metadata</h3>
+        {flow.protocol === "TLS" ? (
+          <dl className="detail-grid detail-grid--compact">
+            <div>
+              <dt>SNI</dt>
+              <dd>{stringValue(flow.metadata.sni)}</dd>
+            </div>
+            <div>
+              <dt>Handshake Seen</dt>
+              <dd>{booleanValue(flow.metadata.handshake_seen)}</dd>
+            </div>
+            <div>
+              <dt>ALPN</dt>
+              <dd>{listValue(flow.metadata.alpn_protocols)}</dd>
+            </div>
+            <div>
+              <dt>JA3-like</dt>
+              <dd>{listValue(flow.metadata.ja3_like_fingerprints)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p>Not a TLS flow.</p>
+        )}
+      </div>
+      <div className="detail-block">
         <h3>Metadata</h3>
         <pre>{JSON.stringify(flow.metadata, null, 2)}</pre>
       </div>
@@ -66,4 +91,16 @@ export function FlowDetailPanel({ flow }: FlowDetailPanelProps) {
       </div>
     </aside>
   );
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" && value ? value : "Unavailable";
+}
+
+function booleanValue(value: unknown): string {
+  return typeof value === "boolean" ? (value ? "Yes" : "No") : "Unavailable";
+}
+
+function listValue(value: unknown): string {
+  return Array.isArray(value) && value.length ? value.join(", ") : "Unavailable";
 }

@@ -9,15 +9,23 @@ import { SummaryPanel } from "./components/SummaryPanel";
 import { UploadPanel } from "./components/UploadPanel";
 import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, JobSummary } from "./types/api";
 
+const PAGE_SIZE = 10;
+
 export default function App() {
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [findings, setFindings] = useState<FindingRecord[]>([]);
   const [flows, setFlows] = useState<FlowListItem[]>([]);
+  const [findingsTotal, setFindingsTotal] = useState(0);
+  const [flowsTotal, setFlowsTotal] = useState(0);
   const [selectedFlow, setSelectedFlow] = useState<FlowDetail | null>(null);
   const [protocolFilter, setProtocolFilter] = useState("ALL");
   const [severityFilter, setSeverityFilter] = useState("ALL");
-  const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("ALL");
+  const [flowSearch, setFlowSearch] = useState("");
+  const [findingSearch, setFindingSearch] = useState("");
+  const [flowPage, setFlowPage] = useState(1);
+  const [findingPage, setFindingPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,13 +51,26 @@ export default function App() {
 
         const [nextSummary, nextFindings, nextFlows] = await Promise.all([
           getSummary(job.id),
-          getFindings(job.id),
-          getFlows(job.id, protocolFilter, search),
+          getFindings(job.id, {
+            severity: severityFilter,
+            source: sourceFilter,
+            search: findingSearch,
+            offset: (findingPage - 1) * PAGE_SIZE,
+            limit: PAGE_SIZE,
+          }),
+          getFlows(job.id, {
+            protocol: protocolFilter,
+            search: flowSearch,
+            offset: (flowPage - 1) * PAGE_SIZE,
+            limit: PAGE_SIZE,
+          }),
         ]);
         if (!cancelled) {
           setSummary(nextSummary);
-          setFindings(nextFindings);
-          setFlows(nextFlows);
+          setFindings(nextFindings.items);
+          setFindingsTotal(nextFindings.total);
+          setFlows(nextFlows.items);
+          setFlowsTotal(nextFlows.total);
         }
       } catch (caught) {
         if (!cancelled) {
@@ -65,7 +86,7 @@ export default function App() {
         window.clearTimeout(timer);
       }
     };
-  }, [job?.id, protocolFilter, search]);
+  }, [job?.id, protocolFilter, severityFilter, sourceFilter, flowSearch, findingSearch, flowPage, findingPage]);
 
   async function handleUpload(file: File) {
     try {
@@ -77,6 +98,10 @@ export default function App() {
       setSummary(null);
       setFindings([]);
       setFlows([]);
+      setFindingsTotal(0);
+      setFlowsTotal(0);
+      setFlowPage(1);
+      setFindingPage(1);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Upload failed");
     } finally {
@@ -105,13 +130,44 @@ export default function App() {
       <div className="workspace">
         <div className="workspace-main">
           <SummaryPanel summary={summary} />
-          <FindingsTable findings={findings} severityFilter={severityFilter} onSeverityChange={setSeverityFilter} />
+          <FindingsTable
+            findings={findings}
+            total={findingsTotal}
+            severityFilter={severityFilter}
+            sourceFilter={sourceFilter}
+            search={findingSearch}
+            page={findingPage}
+            pageSize={PAGE_SIZE}
+            onSeverityChange={(value) => {
+              setSeverityFilter(value);
+              setFindingPage(1);
+            }}
+            onSourceChange={(value) => {
+              setSourceFilter(value);
+              setFindingPage(1);
+            }}
+            onSearchChange={(value) => {
+              setFindingSearch(value);
+              setFindingPage(1);
+            }}
+            onPageChange={setFindingPage}
+          />
           <FlowExplorer
             flows={flows}
+            total={flowsTotal}
             protocol={protocolFilter}
-            search={search}
-            onProtocolChange={setProtocolFilter}
-            onSearchChange={setSearch}
+            search={flowSearch}
+            page={flowPage}
+            pageSize={PAGE_SIZE}
+            onProtocolChange={(value) => {
+              setProtocolFilter(value);
+              setFlowPage(1);
+            }}
+            onSearchChange={(value) => {
+              setFlowSearch(value);
+              setFlowPage(1);
+            }}
+            onPageChange={setFlowPage}
             onSelectFlow={handleSelectFlow}
             selectedFlowId={selectedFlow?.id}
           />

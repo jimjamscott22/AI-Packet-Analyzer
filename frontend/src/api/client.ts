@@ -1,4 +1,4 @@
-import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, JobSummary } from "../types/api";
+import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, JobSummary, PaginatedResponse } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
 
@@ -24,21 +24,48 @@ export function getSummary(jobId: string): Promise<JobSummary> {
   return request<JobSummary>(`/jobs/${jobId}/summary`);
 }
 
-export async function getFindings(jobId: string): Promise<FindingRecord[]> {
-  const payload = await request<{ items: FindingRecord[] }>(`/jobs/${jobId}/findings`);
-  return payload.items;
+interface FindingQuery {
+  severity?: string;
+  source?: string;
+  search?: string;
+  offset?: number;
+  limit?: number;
 }
 
-export async function getFlows(jobId: string, protocol: string, search: string): Promise<FlowListItem[]> {
+interface FlowQuery {
+  protocol?: string;
+  search?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export async function getFindings(jobId: string, query: FindingQuery): Promise<PaginatedResponse<FindingRecord>> {
   const params = new URLSearchParams();
-  if (protocol !== "ALL") {
-    params.set("protocol", protocol);
+  if (query.severity && query.severity !== "ALL") {
+    params.set("severity", query.severity);
   }
-  if (search.trim()) {
-    params.set("search", search.trim());
+  if (query.source && query.source !== "ALL") {
+    params.set("source", query.source);
   }
-  const payload = await request<{ items: FlowListItem[] }>(`/jobs/${jobId}/flows?${params.toString()}`);
-  return payload.items;
+  if (query.search?.trim()) {
+    params.set("search", query.search.trim());
+  }
+  params.set("offset", String(query.offset ?? 0));
+  params.set("limit", String(query.limit ?? 25));
+  return request<PaginatedResponse<FindingRecord>>(`/jobs/${jobId}/findings?${params.toString()}`);
+}
+
+export async function getFlows(jobId: string, query: FlowQuery): Promise<PaginatedResponse<FlowListItem>> {
+  const params = new URLSearchParams();
+  if (query.protocol && query.protocol !== "ALL") {
+    params.set("protocol", query.protocol);
+  }
+  if (query.search?.trim()) {
+    params.set("search", query.search.trim());
+  }
+  params.set("offset", String(query.offset ?? 0));
+  params.set("limit", String(query.limit ?? 25));
+  return request<PaginatedResponse<FlowListItem>>(`/jobs/${jobId}/flows?${params.toString()}`);
 }
 
 export function getFlowDetail(jobId: string, flowId: string): Promise<FlowDetail> {

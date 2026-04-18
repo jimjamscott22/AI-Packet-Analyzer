@@ -33,7 +33,41 @@ def build_flows(packets: list[PacketRecord]) -> list[FlowFeature]:
         elif protocol == "TLS":
             tls_records = [entry.tls for entry in entries if entry.tls]
             metadata["looks_like_tls"] = any(record.get("looks_like_tls") for record in tls_records)
+            metadata["handshake_seen"] = any(record.get("handshake_type") for record in tls_records)
+            metadata["tls_record_count"] = sum(1 for record in tls_records if record.get("looks_like_tls"))
             metadata["sni"] = next((record.get("sni") for record in tls_records if record.get("sni")), None)
+            metadata["alpn_protocols"] = sorted(
+                {
+                    protocol_name
+                    for record in tls_records
+                    for protocol_name in record.get("alpn_protocols", [])
+                    if protocol_name
+                }
+            )
+            metadata["ja3_like_fingerprints"] = sorted(
+                {
+                    str(record.get("ja3_like_fingerprint"))
+                    for record in tls_records
+                    if record.get("ja3_like_fingerprint")
+                }
+            )
+            metadata["record_versions"] = sorted(
+                {str(record.get("record_version")) for record in tls_records if record.get("record_version")}
+            )
+            metadata["client_versions"] = sorted(
+                {str(record.get("client_version")) for record in tls_records if record.get("client_version")}
+            )
+            metadata["handshake_types"] = sorted(
+                {str(record.get("handshake_type")) for record in tls_records if record.get("handshake_type")}
+            )
+            metadata["cipher_suites_sample"] = list(
+                dict.fromkeys(
+                    cipher
+                    for record in tls_records
+                    for cipher in record.get("cipher_suites_sample", [])
+                    if cipher
+                )
+            )[:8]
 
         flows.append(
             FlowFeature(

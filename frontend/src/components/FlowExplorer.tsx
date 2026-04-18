@@ -2,29 +2,42 @@ import type { FlowListItem } from "../types/api";
 
 interface FlowExplorerProps {
   flows: FlowListItem[];
+  total: number;
   protocol: string;
   search: string;
+  page: number;
+  pageSize: number;
   onProtocolChange: (value: string) => void;
   onSearchChange: (value: string) => void;
+  onPageChange: (page: number) => void;
   onSelectFlow: (flowId: string) => void;
   selectedFlowId?: string;
 }
 
 export function FlowExplorer({
   flows,
+  total,
   protocol,
   search,
+  page,
+  pageSize,
   onProtocolChange,
   onSearchChange,
+  onPageChange,
   onSelectFlow,
   selectedFlowId,
 }: FlowExplorerProps) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <section className="panel">
       <div className="table-header">
         <div>
           <div className="section-label">Flows</div>
           <h2>Explorer</h2>
+          <p>
+            {total} result{total === 1 ? "" : "s"} across page {page} of {pageCount}
+          </p>
         </div>
         <div className="toolbar">
           <select value={protocol} onChange={(event) => onProtocolChange(event.target.value)}>
@@ -58,6 +71,17 @@ export function FlowExplorer({
             </div>
           </button>
         ))}
+      </div>
+      <div className="pagination">
+        <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+          Previous
+        </button>
+        <span>
+          Page {page} / {pageCount}
+        </span>
+        <button type="button" disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>
+          Next
+        </button>
       </div>
     </section>
   );

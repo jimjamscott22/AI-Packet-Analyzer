@@ -65,6 +65,12 @@ def init_db() -> None:
             recommended_action TEXT,
             FOREIGN KEY(job_id) REFERENCES jobs(id)
         );
+
+        CREATE INDEX IF NOT EXISTS idx_flows_job_protocol_score
+        ON flows(job_id, protocol, score DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_findings_job_severity_confidence
+        ON findings(job_id, severity, confidence DESC);
         """
     )
     connection.commit()

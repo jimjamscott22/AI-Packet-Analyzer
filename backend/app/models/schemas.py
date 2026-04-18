@@ -35,6 +35,7 @@ class FindingRecord(BaseModel):
 
 
 class FindingListResponse(BaseModel):
+    total: int
     items: list[FindingRecord]
 
 
