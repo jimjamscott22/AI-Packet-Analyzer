@@ -63,6 +63,7 @@ export function FlowExplorer({
               <span>
                 {flow.src_ip}:{flow.src_port ?? "-"} → {flow.dst_ip}:{flow.dst_port ?? "-"}
               </span>
+              <span>{flow.classification}</span>
             </div>
             <div>
               <span>{flow.packet_count} pkts</span>

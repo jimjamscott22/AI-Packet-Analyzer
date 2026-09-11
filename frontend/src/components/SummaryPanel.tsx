@@ -1,7 +1,8 @@
-import type { JobSummary, SummaryMetric } from "../types/api";
+import type { HealthStatus, JobSummary, SummaryMetric } from "../types/api";
 
 interface SummaryPanelProps {
   summary: JobSummary | null;
+  health: HealthStatus | null;
 }
 
 function MetricBar({ label, value, total }: { label: string; value: number; total: number }) {
@@ -23,12 +24,17 @@ function maxValue(items: SummaryMetric[], key: "count" | "bytes") {
   return items.reduce((highest, item) => Math.max(highest, Number(item[key] ?? 0)), 0);
 }
 
-export function SummaryPanel({ summary }: SummaryPanelProps) {
+export function SummaryPanel({ summary, health }: SummaryPanelProps) {
+  const llmEnabled = summary?.llm_enabled ?? health?.llm_mode === "enabled";
+  const llmBaseUrl = summary?.llm_base_url || health?.llm_base_url || "http://127.0.0.1:1234/v1";
+  const llmModel = summary?.llm_model || health?.llm_model || "local-model";
+
   if (!summary) {
     return (
       <section className="panel">
         <div className="section-label">Overview</div>
         <p>No analysis loaded yet.</p>
+        <LlmStatus enabled={Boolean(llmEnabled)} baseUrl={llmBaseUrl} model={llmModel} />
       </section>
     );
   }
@@ -48,9 +54,10 @@ export function SummaryPanel({ summary }: SummaryPanelProps) {
           </article>
           <article>
             <span>LLM</span>
-            <strong>{summary.llm_enabled ? "Enabled" : "Disabled"}</strong>
+            <strong>{llmEnabled ? "Enabled" : "Disabled"}</strong>
           </article>
         </div>
+        <LlmStatus enabled={Boolean(llmEnabled)} baseUrl={llmBaseUrl} model={llmModel} />
       </div>
       <div>
         <h2>Top protocols</h2>
@@ -75,5 +82,27 @@ export function SummaryPanel({ summary }: SummaryPanelProps) {
         ))}
       </div>
     </section>
+  );
+}
+
+function LlmStatus({ enabled, baseUrl, model }: { enabled: boolean; baseUrl: string; model: string }) {
+  return (
+    <div className="llm-status">
+      <div className="section-label">LM Studio</div>
+      <p>
+        {enabled ? "Advisory review enabled" : "Advisory review disabled"}. Connecting over the OpenAI-compatible
+        local API.
+      </p>
+      <dl className="detail-grid detail-grid--compact">
+        <div>
+          <dt>Endpoint</dt>
+          <dd>{baseUrl}</dd>
+        </div>
+        <div>
+          <dt>Model</dt>
+          <dd>{model}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }

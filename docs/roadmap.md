@@ -2,9 +2,9 @@
 
 ## Near-Term
 
-- Add pagination and richer search across findings and flows.
-- Improve TLS metadata extraction, including SNI and JA3-like fingerprints.
 - Add better sample data and integration fixtures.
+- Improve anomaly ranking and evidence presentation.
+- Keep LM Studio as the default local LLM target, with OpenAI-compatible overrides.
 
 ## Later
 
