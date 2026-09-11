@@ -331,6 +331,10 @@ textarea {
   margin-bottom: 6px;
 }
 
+.flow-row div:first-child span {
+  display: block;
+}
+
 .flow-row div:last-child {
   display: grid;
   justify-items: end;
