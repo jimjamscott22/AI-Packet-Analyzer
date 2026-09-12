@@ -9,7 +9,7 @@ export function FlowDetailPanel({ flow }: FlowDetailPanelProps) {
     return (
       <aside className="panel detail-panel">
         <div className="section-label">Inspector</div>
-        <p>Select a flow to inspect evidence and normalized metadata.</p>
+        <p>Select a finding or flow to inspect evidence and normalized metadata.</p>
       </aside>
     );
   }
@@ -39,11 +39,11 @@ export function FlowDetailPanel({ flow }: FlowDetailPanelProps) {
       <div className="detail-block">
         <h3>Evidence</h3>
         {flow.evidence.length ? (
-          <ul>
+          <ol className="evidence-list">
             {flow.evidence.map((item) => (
               <li key={item}>{item}</li>
             ))}
-          </ul>
+          </ol>
         ) : (
           <p>No evidence captured.</p>
         )}
@@ -67,6 +67,22 @@ export function FlowDetailPanel({ flow }: FlowDetailPanelProps) {
             <div>
               <dt>JA3-like</dt>
               <dd>{listValue(flow.metadata.ja3_like_fingerprints)}</dd>
+            </div>
+            <div>
+              <dt>Record count</dt>
+              <dd>{numberValue(flow.metadata.tls_record_count)}</dd>
+            </div>
+            <div>
+              <dt>Handshake types</dt>
+              <dd>{listValue(flow.metadata.handshake_types)}</dd>
+            </div>
+            <div>
+              <dt>Record versions</dt>
+              <dd>{listValue(flow.metadata.record_versions)}</dd>
+            </div>
+            <div>
+              <dt>Cipher sample</dt>
+              <dd>{listValue(flow.metadata.cipher_suites_sample)}</dd>
             </div>
           </dl>
         ) : (
@@ -103,4 +119,8 @@ function booleanValue(value: unknown): string {
 
 function listValue(value: unknown): string {
   return Array.isArray(value) && value.length ? value.join(", ") : "Unavailable";
+}
+
+function numberValue(value: unknown): string {
+  return typeof value === "number" ? String(value) : "Unavailable";
 }

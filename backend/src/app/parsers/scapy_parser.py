@@ -51,9 +51,14 @@ class ScapyPacketParser(PacketParser):
                 dns_layer = packet[DNS]
                 query_name = ""
                 query_type = 0
-                if dns_layer.qd and isinstance(dns_layer.qd, DNSQR):
-                    query_name = (dns_layer.qd.qname or b"").decode("utf-8", errors="ignore").rstrip(".")
-                    query_type = int(dns_layer.qd.qtype or 0)
+                question = _dns_question(dns_layer)
+                if question is not None:
+                    raw_name = question.qname or b""
+                    if isinstance(raw_name, bytes):
+                        query_name = raw_name.decode("utf-8", errors="ignore").rstrip(".")
+                    else:
+                        query_name = str(raw_name).rstrip(".")
+                    query_type = int(question.qtype or 0)
                 dns_data = {
                     "query_name": query_name,
                     "query_type": query_type,
@@ -90,6 +95,21 @@ class ScapyPacketParser(PacketParser):
                 )
             )
         return records
+
+
+def _dns_question(dns_layer: Any) -> Any:
+    question = getattr(dns_layer, "qd", None)
+    if question is None:
+        return None
+    if DNSQR is not None and isinstance(question, DNSQR):
+        return question
+    try:
+        first = question[0]
+    except Exception:
+        return None
+    if DNSQR is None or isinstance(first, DNSQR):
+        return first
+    return None
 
 
 def _parse_tls_payload(payload: bytes) -> dict[str, Any]:

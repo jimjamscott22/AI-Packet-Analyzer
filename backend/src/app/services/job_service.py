@@ -305,6 +305,8 @@ def get_summary(job_id: str) -> JobSummary:
         top_talkers=top_talkers,
         severities=severities,
         llm_enabled=settings.llm_enabled,
+        llm_base_url=settings.llm_base_url,
+        llm_model=settings.llm_model,
     )
 
 

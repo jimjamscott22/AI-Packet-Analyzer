@@ -12,7 +12,7 @@ The v1 workflow is intentionally simple:
 2. The backend creates an analysis job and parses the capture asynchronously.
 3. Parsed packets are grouped into normalized flows.
 4. Heuristics score the flows for suspicious characteristics.
-5. If configured, the top anomalous flows are sent to an OpenAI-compatible LLM for a second-pass review.
+5. If configured, the top anomalous flows are sent to a local LM Studio server for a second-pass review.
 6. The UI presents job status, summary metrics, findings, flow explorer data, and per-flow detail.
 
 This is a local MVP. It is built for offline PCAP ingestion first, not live packet capture, distributed deployment, or multi-user operation.
@@ -27,7 +27,7 @@ This is a local MVP. It is built for offline PCAP ingestion first, not live pack
   - possible DNS tunneling
   - possible beaconing / callback behavior
   - suspicious TLS session patterns
-- Optional OpenAI-compatible LLM enrichment for the most suspicious flows
+- Optional LM Studio enrichment for the most suspicious flows
 - React dashboard for:
   - file upload
   - job polling and status updates
@@ -62,7 +62,7 @@ The backend is built with FastAPI and split into a few small responsibilities:
 - `services/`: upload handling, job lifecycle, flow building, and analysis orchestration
 - `parsers/`: packet parser abstraction and the current Scapy implementation
 - `detectors/`: heuristic scoring logic
-- `llm/`: optional OpenAI-compatible provider integration
+- `llm/`: optional LM Studio / OpenAI-compatible provider integration
 - `db/`: SQLite initialization and access helpers
 - `models/`: transport schemas returned by the API
 
@@ -116,7 +116,7 @@ The current detector looks for signals including:
 
 The LLM is advisory only. It does not replace the heuristic detector and it does not inspect raw payloads. The backend sends structured flow summaries, not full packet contents.
 
-If no API key is configured, the application still works in heuristics-only mode.
+If LM Studio is not enabled, the application still works in heuristics-only mode. The default endpoint is `http://127.0.0.1:1234/v1`. An unreachable local server does not fail the analysis job.
 
 ## Supported Outputs
 
@@ -194,14 +194,22 @@ By default, the frontend expects the backend API at `http://localhost:8000/api`.
 
 These environment variables are currently supported:
 
-- `OPENAI_API_KEY`
-  - enables optional LLM review
-- `OPENAI_BASE_URL`
-  - defaults to `https://api.openai.com/v1`
-- `OPENAI_MODEL`
-  - defaults to `gpt-4.1-mini`
+- `LLM_ENABLED`
+  - enables optional LM Studio review without requiring an API key
+- `LLM_BASE_URL`
+  - defaults to `http://127.0.0.1:1234/v1`
+- `LLM_MODEL`
+  - defaults to `local-model`; set this to the identifier shown in LM Studio
+- `LLM_API_KEY`
+  - optional bearer token; LM Studio does not need one
 - `LLM_MAX_FLOWS`
   - limits how many suspicious flows are sent to the LLM
+- `LLM_TIMEOUT_SECONDS`
+  - request timeout for local inference, default `60`
+- `LLM_JSON_MODE`
+  - optional `response_format=json_object` support, default off
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
+  - compatibility aliases for the `LLM_*` variables
 
 Operational defaults:
 
@@ -217,12 +225,16 @@ The repository includes backend tests for:
 - upload validation
 - flow grouping
 - heuristic detection behavior
+- LM Studio provider behavior
+- sample PCAP parse → flow → findings coverage
 
 Run them from the repo root after installing backend dev dependencies:
 
 ```bash
 uv --project backend run pytest backend/tests -q
 ```
+
+Representative captures for manual upload testing live in `samples/`.
 
 ## Documentation
 
@@ -236,10 +248,8 @@ Additional project notes live in:
 
 Near-term extensions:
 
-- better sample captures and integration fixtures
-- richer TLS metadata extraction
-- stronger filtering and pagination in the dashboard
-- improved anomaly ranking and evidence presentation
+- richer protocol support beyond DNS, HTTP, and TLS
+- live capture support
 
 Longer-term extensions:
 

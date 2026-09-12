@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { getFindings, getFlowDetail, getFlows, getJob, getSummary, uploadPcap } from "./api/client";
+import { getFindings, getFlowDetail, getFlows, getHealth, getJob, getSummary, uploadPcap } from "./api/client";
 import { FindingsTable } from "./components/FindingsTable";
 import { FlowDetailPanel } from "./components/FlowDetailPanel";
 import { FlowExplorer } from "./components/FlowExplorer";
 import { StatusStrip } from "./components/StatusStrip";
 import { SummaryPanel } from "./components/SummaryPanel";
 import { UploadPanel } from "./components/UploadPanel";
-import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, JobSummary } from "./types/api";
+import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, HealthStatus, JobSummary } from "./types/api";
 
 const PAGE_SIZE = 10;
 
@@ -26,8 +26,28 @@ export default function App() {
   const [findingSearch, setFindingSearch] = useState("");
   const [flowPage, setFlowPage] = useState(1);
   const [findingPage, setFindingPage] = useState(1);
+  const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHealth()
+      .then((nextHealth) => {
+        if (!cancelled) {
+          setHealth(nextHealth);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHealth(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!job?.id) {
@@ -93,6 +113,7 @@ export default function App() {
       setIsUploading(true);
       setError(null);
       setSelectedFlow(null);
+      setSelectedFindingId(null);
       const createdJob = await uploadPcap(file);
       setJob(createdJob);
       setSummary(null);
@@ -109,16 +130,26 @@ export default function App() {
     }
   }
 
-  async function handleSelectFlow(flowId: string) {
+  async function handleSelectFlow(flowId: string, findingId?: string) {
     if (!job) {
       return;
     }
     try {
       const detail = await getFlowDetail(job.id, flowId);
       setSelectedFlow(detail);
+      setSelectedFindingId(findingId ?? null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to load flow detail");
     }
+  }
+
+  async function handleSelectFinding(finding: FindingRecord) {
+    const flowId = finding.flow_ids[0];
+    if (!flowId) {
+      setSelectedFindingId(finding.id);
+      return;
+    }
+    await handleSelectFlow(flowId, finding.id);
   }
 
   return (
@@ -129,7 +160,7 @@ export default function App() {
       {error ? <div className="error-banner">{error}</div> : null}
       <div className="workspace">
         <div className="workspace-main">
-          <SummaryPanel summary={summary} />
+          <SummaryPanel summary={summary} health={health} />
           <FindingsTable
             findings={findings}
             total={findingsTotal}
@@ -138,6 +169,7 @@ export default function App() {
             search={findingSearch}
             page={findingPage}
             pageSize={PAGE_SIZE}
+            selectedFindingId={selectedFindingId ?? undefined}
             onSeverityChange={(value) => {
               setSeverityFilter(value);
               setFindingPage(1);
@@ -151,6 +183,7 @@ export default function App() {
               setFindingPage(1);
             }}
             onPageChange={setFindingPage}
+            onSelectFinding={handleSelectFinding}
           />
           <FlowExplorer
             flows={flows}

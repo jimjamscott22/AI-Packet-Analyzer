@@ -220,7 +220,56 @@ textarea {
   gap: 12px;
   padding: 12px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  align-items: center;
+  align-items: start;
+}
+
+.table-row--button {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  cursor: pointer;
+}
+
+.table-row--button.is-active,
+.table-row--button:hover {
+  background: rgba(142, 242, 200, 0.08);
+}
+
+.finding-evidence {
+  display: grid;
+  gap: 4px;
+}
+
+.finding-evidence strong,
+.finding-evidence em {
+  display: block;
+  font-style: normal;
+}
+
+.finding-evidence em {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.llm-status {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.llm-status dd {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.evidence-list {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .table-row--head {
@@ -280,6 +329,10 @@ textarea {
 .flow-row strong {
   display: block;
   margin-bottom: 6px;
+}
+
+.flow-row div:first-child span {
+  display: block;
 }
 
 .flow-row div:last-child {

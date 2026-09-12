@@ -53,25 +53,26 @@ async def run_analysis_job(job_id: str) -> None:
                         "evidence": flow.evidence,
                     }
                 )
-                if llm_decision:
-                    flow.metadata["llm_reviewed"] = True
-                    setattr(flow, "llm_decision", llm_decision)
-                    if flow.classification == "normal" and llm_decision["classification"] != "normal":
-                        flow.classification = llm_decision["classification"]
-                        findings.append(
-                            {
-                                "id": f"llm-{flow.id}",
-                                "type": llm_decision["classification"],
-                                "severity": "medium",
-                                "confidence": llm_decision["confidence"],
-                                "title": "LLM review escalated this flow",
-                                "summary": llm_decision["rationale"],
-                                "source": "llm",
-                                "flow_ids": [flow.id],
-                                "evidence": flow.evidence,
-                                "recommended_action": llm_decision["recommended_action"],
-                            }
-                        )
+                if not llm_decision:
+                    continue
+                flow.metadata["llm_reviewed"] = True
+                setattr(flow, "llm_decision", llm_decision)
+                if flow.classification == "normal" and llm_decision["classification"] != "normal":
+                    flow.classification = llm_decision["classification"]
+                    findings.append(
+                        {
+                            "id": f"llm-{flow.id}",
+                            "type": llm_decision["classification"],
+                            "severity": "medium",
+                            "confidence": llm_decision["confidence"],
+                            "title": "LLM review escalated this flow",
+                            "summary": llm_decision["rationale"],
+                            "source": "llm",
+                            "flow_ids": [flow.id],
+                            "evidence": flow.evidence,
+                            "recommended_action": llm_decision["recommended_action"],
+                        }
+                    )
 
         serialized_flows = []
         for flow in scored_flows:

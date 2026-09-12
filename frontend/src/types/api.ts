@@ -21,6 +21,13 @@ export interface SummaryMetric {
   bytes?: number;
 }
 
+export interface HealthStatus {
+  status: string;
+  llm_mode: string;
+  llm_base_url: string;
+  llm_model: string;
+}
+
 export interface JobSummary {
   job_id: string;
   status: JobStatus;
@@ -31,6 +38,8 @@ export interface JobSummary {
   top_talkers: SummaryMetric[];
   severities: SummaryMetric[];
   llm_enabled: boolean;
+  llm_base_url?: string;
+  llm_model?: string;
 }
 
 export interface FindingRecord {

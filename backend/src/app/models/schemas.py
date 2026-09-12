@@ -88,3 +88,5 @@ class JobSummary(BaseModel):
     top_talkers: list[dict[str, Any]] = Field(default_factory=list)
     severities: list[dict[str, Any]] = Field(default_factory=list)
     llm_enabled: bool = False
+    llm_base_url: str = ""
+    llm_model: str = ""

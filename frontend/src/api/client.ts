@@ -1,4 +1,12 @@
-import type { AnalysisJob, FindingRecord, FlowDetail, FlowListItem, JobSummary, PaginatedResponse } from "../types/api";
+import type {
+  AnalysisJob,
+  FindingRecord,
+  FlowDetail,
+  FlowListItem,
+  HealthStatus,
+  JobSummary,
+  PaginatedResponse,
+} from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
 
@@ -8,6 +16,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(await response.text());
   }
   return response.json() as Promise<T>;
+}
+
+export function getHealth(): Promise<HealthStatus> {
+  return request<HealthStatus>("/health");
 }
 
 export async function uploadPcap(file: File): Promise<AnalysisJob> {

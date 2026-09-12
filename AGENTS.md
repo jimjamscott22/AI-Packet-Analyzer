@@ -7,7 +7,7 @@ AI Packet Analyzer is a local-first network analysis application for offline PCA
 - FastAPI backend for upload, job execution, summaries, findings, flow listing, and flow detail
 - SQLite persistence for jobs, normalized flows, and findings
 - Scapy-based packet parsing with metadata-first protocol extraction
-- Heuristics-first analysis with optional OpenAI-compatible LLM enrichment
+- Heuristics-first analysis with optional LM Studio enrichment
 - React frontend for upload, job polling, findings review, flow exploration, and detail inspection
 
 The core product constraint is to preserve a practical analyst workflow without turning the app into a full packet retention or distributed processing platform.
@@ -16,17 +16,19 @@ The core product constraint is to preserve a practical analyst workflow without 
 
 ### Backend
 
-- `backend/app/api/routes/`
+- `backend/src/app/api/routes/`
   - HTTP routes for jobs and health
-- `backend/app/services/`
+- `backend/src/app/services/`
   - upload storage, flow building, job persistence helpers, analysis orchestration
-- `backend/app/parsers/`
+- `backend/src/app/parsers/`
   - parser abstraction and Scapy implementation
-- `backend/app/detectors/`
+- `backend/src/app/detectors/`
   - heuristic scoring and finding generation
-- `backend/app/db/`
+- `backend/src/app/llm/`
+  - LM Studio / OpenAI-compatible advisory review provider
+- `backend/src/app/db/`
   - SQLite setup and connection helpers
-- `backend/app/models/`
+- `backend/src/app/models/`
   - Pydantic transport schemas
 
 ### Frontend
@@ -44,6 +46,8 @@ The core product constraint is to preserve a practical analyst workflow without 
 - Offline upload analysis is the default operating mode.
 - Do not introduce raw payload persistence in UI-visible records.
 - Keep heuristic detection separate from advisory LLM output.
+- Default LLM connectivity to local LM Studio (`http://127.0.0.1:1234/v1`); do not require an API key.
+- LLM failures must fail soft so heuristic analysis still completes.
 - Prefer additive API and schema changes over breaking contract changes.
 - Persist normalized flow metadata in `metadata_json` unless a new relational field is clearly necessary.
 
@@ -66,40 +70,48 @@ The following near-term roadmap items are now implemented:
   - flow detail view now renders key TLS metadata before raw JSON
 - Backend query performance improvements
   - SQLite indexes were added for common flow and findings list access patterns
+- Sample captures and integration fixtures
+  - representative benign and suspicious PCAPs live in `samples/`
+  - backend tests cover parse → flow → findings for those capture shapes
+- Improved anomaly ranking and evidence presentation
+  - detector-local scores, numeric evidence wording, and weight-ordered evidence
+  - related same-host findings are grouped onto one record with multiple `flow_ids`
+  - findings table shows prioritized evidence and opens a related flow in the inspector
+- LM Studio as the default LLM target
+  - `LLM_ENABLED`, `LLM_BASE_URL`, and `LLM_MODEL` configure local review
+  - health and summary APIs expose enabled status, base URL, and model
+  - the dashboard Overview panel shows that connection status
 
 ## Remaining Planned Upgrades
 
 ### Near-Term
 
-- Better sample captures and integration fixtures
-  - add representative benign and suspicious PCAP inputs
-  - add higher-confidence end-to-end test coverage for parsing, flow generation, and findings output
-- Improved anomaly ranking and evidence presentation
-  - refine scoring weights across DNS, beaconing, and TLS
-  - improve evidence prioritization and wording for analyst review
-  - consider better finding-to-flow grouping when multiple related flows support one conclusion
+- Broader protocol support beyond DNS, HTTP, and TLS
 
 ### Later
 
 - Live interface capture
 - Raspberry Pi or remote sensor mode
 - Multi-job queue with a dedicated worker process
-- Broader protocol support
 - Analyst feedback loops for heuristic tuning
 
 ## Implementation Guidance For Future Agents
 
 - Before changing API contracts, inspect both:
-  - `backend/app/models/schemas.py`
+  - `backend/src/app/models/schemas.py`
   - `frontend/src/types/api.ts`
 - Before changing list behavior, inspect:
-  - `backend/app/services/job_service.py`
+  - `backend/src/app/services/job_service.py`
   - `frontend/src/api/client.ts`
   - `frontend/src/App.tsx`
 - Before changing protocol extraction, inspect:
-  - `backend/app/parsers/scapy_parser.py`
-  - `backend/app/services/flow_builder.py`
-  - `backend/app/detectors/heuristics.py`
+  - `backend/src/app/parsers/scapy_parser.py`
+  - `backend/src/app/services/flow_builder.py`
+  - `backend/src/app/detectors/heuristics.py`
+- Before changing LLM review behavior, inspect:
+  - `backend/src/app/core/config.py`
+  - `backend/src/app/llm/provider.py`
+  - `backend/src/app/services/analysis.py`
 - Prefer extending existing metadata and evidence structures instead of introducing parallel representations.
 - Keep parsing best-effort and non-fatal. Malformed or partial traffic should degrade metadata quality, not fail the job.
 - If a roadmap item requires breaking storage or API changes, document the migration path explicitly in the PR or follow-up notes.
@@ -109,7 +121,7 @@ The following near-term roadmap items are now implemented:
 Backend verification:
 
 ```bash
-PYTHONPATH=backend pytest backend/tests -q
+uv --project backend run pytest backend/tests -q
 ```
 
 Frontend verification:

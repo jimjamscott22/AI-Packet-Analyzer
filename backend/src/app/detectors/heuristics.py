@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 import math
 from statistics import mean, pstdev
@@ -36,13 +36,22 @@ def _shannon_entropy(text: str) -> float:
     return -sum((count / length) * math.log2(count / length) for count in counts.values())
 
 
+def _score(signals: list[tuple[float, str]]) -> float:
+    return round(sum(weight for weight, _ in signals), 4)
+
+
+def _evidence(signals: list[tuple[float, str]]) -> list[str]:
+    return [text for _, text in sorted(signals, key=lambda item: (-item[0], item[1]))]
+
+
 def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[dict[str, Any]]]:
     findings: list[dict[str, Any]] = []
     outbound_counts = Counter(flow.src_ip for flow in flows)
 
     for flow in flows:
-        evidence: list[str] = []
-        score = 0.0
+        dns_signals: list[tuple[float, str]] = []
+        beacon_signals: list[tuple[float, str]] = []
+        tls_signals: list[tuple[float, str]] = []
         classification = "normal"
 
         if flow.protocol == "DNS":
@@ -53,31 +62,37 @@ def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[
             query_type_counts = Counter(flow.metadata.get("query_types", []))
 
             if flow.packet_count >= 15:
-                score += 0.25
-                evidence.append("High DNS query count within a single flow.")
+                dns_signals.append(
+                    (0.25, f"High DNS query count within a single flow ({flow.packet_count} queries).")
+                )
             if average_length >= 40:
-                score += 0.25
-                evidence.append("Long DNS query names increase tunneling suspicion.")
+                dns_signals.append(
+                    (0.3, f"Long DNS query names increase tunneling suspicion (avg {average_length:.1f} characters).")
+                )
             if entropy >= 3.6:
-                score += 0.3
-                evidence.append("High-entropy labels suggest encoded subdomains.")
+                dns_signals.append(
+                    (0.35, f"High-entropy labels suggest encoded subdomains (avg entropy {entropy:.2f}).")
+                )
             if unique_subdomains >= 10:
-                score += 0.2
-                evidence.append("Large number of unique subdomains observed.")
+                dns_signals.append(
+                    (0.2, f"Large number of unique subdomains observed ({unique_subdomains}).")
+                )
             if query_type_counts.get(16, 0) >= 3:
-                score += 0.15
-                evidence.append("Repeated TXT queries observed.")
+                txt_count = query_type_counts.get(16, 0)
+                dns_signals.append((0.15, f"Repeated TXT queries observed ({txt_count})."))
 
-            if score >= 0.6:
+            dns_score = _score(dns_signals)
+            if dns_score >= 0.6:
                 classification = "suspicious_dns_tunneling"
+                evidence = _evidence(dns_signals)
                 findings.append(
                     _finding(
                         job_flow=flow,
                         finding_type=classification,
-                        severity="high" if score >= 0.8 else "medium",
-                        confidence=min(score, 0.99),
+                        severity="high" if dns_score >= 0.85 else "medium",
+                        confidence=min(dns_score, 0.99),
                         title="Possible DNS tunneling",
-                        summary="Flow exhibits high-volume, long, and high-entropy DNS queries.",
+                        summary=_summary("DNS tunneling indicators", evidence),
                         evidence=evidence,
                     )
                 )
@@ -89,32 +104,47 @@ def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[
                 avg_interval = mean(intervals)
                 interval_stdev = pstdev(intervals) if len(intervals) > 1 else 0.0
                 if 1.0 <= avg_interval <= 120.0 and interval_stdev <= max(avg_interval * 0.15, 1.0):
-                    score += 0.45
-                    evidence.append("Connection timing appears periodic.")
+                    beacon_signals.append(
+                        (
+                            0.45,
+                            f"Connection timing appears periodic (avg {avg_interval:.1f}s, stdev {interval_stdev:.1f}s).",
+                        )
+                    )
 
             average_packet_size = flow.byte_count / max(flow.packet_count, 1)
             if average_packet_size <= 220:
-                score += 0.2
-                evidence.append("Small, regular bursts resemble beaconing.")
+                beacon_signals.append(
+                    (
+                        0.2,
+                        f"Small, regular bursts resemble beaconing (avg {average_packet_size:.0f} bytes/packet).",
+                    )
+                )
 
             if flow.packet_count <= 8 and flow.duration_seconds <= 30:
-                score += 0.15
-                evidence.append("Short-lived repetitive session.")
+                beacon_signals.append(
+                    (
+                        0.15,
+                        f"Short-lived repetitive session ({flow.packet_count} packets over {flow.duration_seconds:.1f}s).",
+                    )
+                )
 
             if outbound_counts[flow.src_ip] >= 8 and flow.protocol == "TLS":
-                score += 0.1
-                evidence.append("Host initiates many outbound sessions.")
+                beacon_signals.append(
+                    (0.15, f"Host initiates many outbound sessions ({outbound_counts[flow.src_ip]} from {flow.src_ip}).")
+                )
 
-            if score >= 0.6:
+            beacon_score = _score(beacon_signals)
+            if beacon_score >= 0.6:
                 classification = "suspicious_beaconing"
+                evidence = _evidence(beacon_signals)
                 findings.append(
                     _finding(
                         job_flow=flow,
                         finding_type=classification,
-                        severity="high" if score >= 0.8 else "medium",
-                        confidence=min(score, 0.99),
+                        severity="high" if beacon_score >= 0.8 else "medium",
+                        confidence=min(beacon_score, 0.99),
                         title="Possible command-and-control beaconing",
-                        summary="Timing and packet-size regularity resemble automated callback traffic.",
+                        summary=_summary("Beaconing indicators", evidence),
                         evidence=evidence,
                     )
                 )
@@ -122,53 +152,56 @@ def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[
         if flow.protocol == "TLS":
             short_sessions = flow.packet_count <= 6 and flow.duration_seconds <= 20
             if short_sessions:
-                score += 0.2
-                evidence.append("Short TLS session with little payload exchange.")
+                tls_signals.append(
+                    (
+                        0.15,
+                        f"Short TLS session with little payload exchange ({flow.packet_count} packets, {flow.duration_seconds:.1f}s).",
+                    )
+                )
             has_sni = bool(flow.metadata.get("sni"))
             alpn_protocols = flow.metadata.get("alpn_protocols", [])
             handshake_seen = bool(flow.metadata.get("handshake_seen"))
             ja3_like_fingerprints = flow.metadata.get("ja3_like_fingerprints", [])
 
             if not has_sni and not alpn_protocols:
-                score += 0.2
-                evidence.append("TLS flow exposes neither SNI nor ALPN metadata.")
+                tls_signals.append((0.25, "TLS flow exposes neither SNI nor ALPN metadata."))
             elif not has_sni:
-                score += 0.1
-                evidence.append("SNI missing from visible metadata.")
+                tls_signals.append((0.15, "SNI missing from visible metadata."))
 
             if not handshake_seen and flow.metadata.get("looks_like_tls"):
-                score += 0.15
-                evidence.append("TLS records observed without a visible handshake.")
+                tls_signals.append((0.2, "TLS records observed without a visible handshake."))
 
             if len(ja3_like_fingerprints) > 1 and short_sessions:
-                score += 0.15
-                evidence.append("Multiple JA3-like fingerprints observed across a short TLS flow.")
+                tls_signals.append(
+                    (
+                        0.15,
+                        f"Multiple JA3-like fingerprints observed across a short TLS flow ({len(ja3_like_fingerprints)}).",
+                    )
+                )
 
-            if flow.metadata.get("looks_like_tls") and flow.dst_port == 443:
-                score += 0.1
-            if flow.score < score:
-                flow.score = score
-            if flow.classification == "normal" and score >= 0.45:
-                flow.classification = "suspicious_tls_pattern"
-                flow.evidence = list(dict.fromkeys(flow.evidence + evidence))
+            tls_score = _score(tls_signals)
+            if tls_score >= 0.45:
+                if classification == "normal":
+                    classification = "suspicious_tls_pattern"
+                evidence = _evidence(tls_signals)
                 findings.append(
                     _finding(
                         job_flow=flow,
                         finding_type="suspicious_tls_pattern",
-                        severity="medium",
-                        confidence=min(score, 0.85),
+                        severity="high" if tls_score >= 0.7 else "medium",
+                        confidence=min(tls_score, 0.85),
                         title="Suspicious TLS pattern",
-                        summary="TLS metadata indicates repetitive, short, or opaque sessions worth review.",
+                        summary=_summary("TLS metadata anomalies", evidence),
                         evidence=evidence,
                     )
                 )
 
-        if score > flow.score:
-            flow.score = score
-        if classification != "normal":
-            flow.classification = classification
-        flow.evidence = list(dict.fromkeys(flow.evidence + evidence))
+        combined_signals = dns_signals + beacon_signals + tls_signals
+        flow.score = _score(combined_signals)
+        flow.classification = classification
+        flow.evidence = _evidence(combined_signals)
 
+    findings = _group_related_findings(flows, findings)
     if not findings:
         findings.append(
             {
@@ -186,6 +219,61 @@ def apply_heuristics(flows: list[FlowFeature]) -> tuple[list[FlowFeature], list[
         )
 
     return flows, findings
+
+
+def _summary(prefix: str, evidence: list[str]) -> str:
+    if not evidence:
+        return f"{prefix} crossed the configured review threshold."
+    strongest = evidence[0].rstrip(".")
+    if len(evidence) == 1:
+        return f"{prefix}: {strongest}."
+    return f"{prefix}: {strongest}. Additional signals: {len(evidence) - 1}."
+
+
+def _group_related_findings(flows: list[FlowFeature], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flow_index = {flow.id: flow for flow in flows}
+    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    passthrough: list[dict[str, Any]] = []
+
+    for finding in findings:
+        flow_ids = finding.get("flow_ids") or []
+        if finding.get("source") != "heuristic" or finding.get("type") == "normal" or len(flow_ids) != 1:
+            passthrough.append(finding)
+            continue
+        flow = flow_index.get(flow_ids[0])
+        if flow is None:
+            passthrough.append(finding)
+            continue
+        grouped[(finding["type"], finding["source"], flow.src_ip, flow.dst_ip)].append(finding)
+
+    merged: list[dict[str, Any]] = []
+    for items in grouped.values():
+        if len(items) == 1:
+            merged.append(items[0])
+            continue
+        primary = max(items, key=lambda item: (item.get("confidence", 0), len(item.get("evidence") or [])))
+        flow_ids: list[str] = []
+        evidence: list[str] = []
+        for item in items:
+            for flow_id in item.get("flow_ids") or []:
+                if flow_id not in flow_ids:
+                    flow_ids.append(flow_id)
+            for line in item.get("evidence") or []:
+                if line not in evidence:
+                    evidence.append(line)
+        severity = "high" if any(item.get("severity") == "high" for item in items) else primary["severity"]
+        merged.append(
+            {
+                **primary,
+                "severity": severity,
+                "confidence": max(item.get("confidence", 0) for item in items),
+                "flow_ids": flow_ids,
+                "evidence": evidence,
+                "summary": f"{primary['summary']} Grouped {len(flow_ids)} related flows between the same hosts.",
+                "recommended_action": "Inspect the related flows and corroborate with endpoint or DNS logs.",
+            }
+        )
+    return merged + passthrough
 
 
 def _finding(

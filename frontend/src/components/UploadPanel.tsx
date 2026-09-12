@@ -21,7 +21,7 @@ export function UploadPanel({ onUpload, isUploading }: UploadPanelProps) {
       <h1>Packet analysis workspace</h1>
       <p>
         Upload a capture file to extract flows, score suspicious patterns, and optionally enrich the top anomalies
-        with an LLM review.
+        with a local LM Studio review.
       </p>
       <label
         className={`dropzone ${dragging ? "is-dragging" : ""}`}
